@@ -1,31 +1,8 @@
-# Streamlit and frontend
-streamlit==1.35.0
-plotly==5.21.0
-matplotlib==3.8.4
-seaborn==0.13.2
-
-# Core data science libraries
-pandas==2.2.2
-numpy==1.26.4
-scikit-learn==1.4.2
-joblib==1.4.2
-
-# Model explainability (optional but recommended)
-shap==0.45.0
-
-# Excel and export support
-openpyxl==3.1.2
-xlsxwriter==3.2.0
-
-# Typing, schema validation (optional)
-pydantic==2.7.1
-pandera==0.19.0
-
-# Date and utility
-python-dateutil==2.9.0.post0
-
-# Optional (for real-time alerts, async operations)
-aiofiles==23.2.1
-
-# Prevent unwanted warnings
-warnings==0.2.0
+streamlit
+plotly
+matplotlib
+seaborn
+pandas
+scikit-learn
+joblib
+numpy
