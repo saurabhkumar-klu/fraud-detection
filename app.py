@@ -451,18 +451,12 @@ def create_demo_data():
     """Create demo data for testing purposes"""
     np.random.seed(42)
     n_samples = 1000
-    
-    # Generate synthetic transaction data
-    demo_data = pd.DataFrame({
-        'V1': np.random.normal(0, 1, n_samples),
-        'V2': np.random.normal(0, 1, n_samples),
-        'V3': np.random.normal(0, 1, n_samples),
-        'V4': np.random.normal(0, 1, n_samples),
-        'V5': np.random.normal(0, 1, n_samples),
-        'Amount': np.random.exponential(50, n_samples),
-        'Time': np.random.randint(0, 86400, n_samples),
-        'Class': np.random.choice([0, 1], n_samples, p=[0.998, 0.002])
-    })
+    # Generate synthetic transaction data with V1-V28
+    feature_data = {f'V{i}': np.random.normal(0, 1, n_samples) for i in range(1, 29)}
+    feature_data['Amount'] = np.random.exponential(50, n_samples)
+    feature_data['Time'] = np.random.randint(0, 86400, n_samples)
+    feature_data['Class'] = np.random.choice([0, 1], n_samples, p=[0.998, 0.002])
+    demo_data = pd.DataFrame(feature_data)
     
     return demo_data
 
@@ -470,7 +464,15 @@ def main():
     # Initialize session state
     if 'monitoring' not in st.session_state:
         st.session_state.monitoring = False
-    
+    if 'selected_tab' not in st.session_state:
+        st.session_state.selected_tab = 0
+
+    # Home button at the top
+    col_home, _ = st.columns([1, 8])
+    with col_home:
+        if st.button('🏠 Home'):
+            st.session_state.selected_tab = 0
+
     # Header
     st.markdown('<h1 class="main-header">🔒 Advanced Credit Card Fraud Detection Platform</h1>', unsafe_allow_html=True)
     
@@ -613,22 +615,19 @@ def main():
                     results_df['Actual_Class'] = data['Class']
             
             # Create tabs for different analysis views
-            tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
+            tab_names = [
                 "📊 Overview", "📈 Advanced Analytics", "🎯 Model Performance", 
                 "🔍 Feature Analysis", "🚨 Alert System", "📡 Real-time Monitoring"
-            ])
-            
-            with tab1:
-                # Overview tab (original functionality enhanced)
+            ]
+            selected_tab = st.radio(
+                "Navigation", tab_names, index=st.session_state.get('selected_tab', 0), horizontal=True, key='tab_radio')
+            st.session_state.selected_tab = tab_names.index(selected_tab)
+            if selected_tab == "📊 Overview":
                 st.subheader("🎯 Detection Results Overview")
-                
-                # Enhanced summary metrics
                 report = generate_fraud_report(results_df)
-                
                 col1, col2, col3, col4, col5 = st.columns(5)
                 with col1:
-                    st.metric("Fraudulent", f"{report['fraud_count']:,}", 
-                             delta=f"{report['fraud_rate']:.2f}%")
+                    st.metric("Fraudulent", f"{report['fraud_count']:,}", delta=f"{report['fraud_rate']:.2f}%")
                 with col2:
                     st.metric("Genuine", f"{report['total_transactions'] - report['fraud_count']:,}")
                 with col3:
@@ -637,16 +636,12 @@ def main():
                     st.metric("Medium Risk", f"{report['medium_risk']:,}")
                 with col5:
                     st.metric("Low Risk", f"{report['low_risk']:,}")
-                
-                # Enhanced visualizations
                 fig_pie, fig_hist, fig_scatter, fig_time = create_advanced_visualizations(results_df)
-                
                 col1, col2 = st.columns(2)
                 with col1:
                     st.plotly_chart(fig_pie, use_container_width=True)
                 with col2:
                     st.plotly_chart(fig_hist, use_container_width=True)
-                
                 if fig_scatter:
                     col1, col2 = st.columns(2)
                     with col1:
@@ -654,25 +649,34 @@ def main():
                     if fig_time:
                         with col2:
                             st.plotly_chart(fig_time, use_container_width=True)
-                
-                # Top risky transactions
+                # --- New: Transaction Search and Risk Filter ---
                 st.subheader("⚠️ Highest Risk Transactions")
-                risky_transactions = results_df.nlargest(10, 'Fraud_Probability')
-                
+                filter_cols = st.columns([2,2,6])
+                with filter_cols[0]:
+                    risk_filter = st.selectbox("Filter by Risk Level", ["All", "Low", "Medium", "High"])
+                with filter_cols[1]:
+                    txn_id_col = None
+                    for col in results_df.columns:
+                        if "id" in col.lower():
+                            txn_id_col = col
+                            break
+                    search_id = st.text_input("Search Transaction ID", "") if txn_id_col else None
+                filtered = results_df.copy()
+                if risk_filter != "All":
+                    filtered = filtered[filtered['Risk_Level'] == risk_filter]
+                if txn_id_col and search_id:
+                    filtered = filtered[filtered[txn_id_col].astype(str).str.contains(search_id, case=False)]
+                risky_transactions = filtered.nlargest(10, 'Fraud_Probability')
                 display_cols = ['Fraud_Probability', 'Risk_Level']
                 if 'Amount' in results_df.columns:
                     display_cols.append('Amount')
                 if 'Time' in results_df.columns:
                     display_cols.append('Time')
-                
-                # Combine display and original columns safely
                 combined_cols = display_cols + list(data.columns[:5])
                 unique_cols = list(dict.fromkeys(combined_cols))
-                # Only keep columns that exist in risky_transactions
                 existing_cols = [col for col in unique_cols if col in risky_transactions.columns]
                 st.dataframe(risky_transactions[existing_cols].round(4))
-            
-            with tab2:
+            elif selected_tab == "📈 Advanced Analytics":
                 # Advanced Analytics tab
                 st.subheader("📈 Advanced Analytics Dashboard")
                 
@@ -702,28 +706,31 @@ def main():
                             'Total Fraud Value': results_df[results_df['Prediction']==1]['Amount'].sum()
                         }
                         st.json(amount_stats)
-            
-            with tab3:
+            elif selected_tab == "🎯 Model Performance":
                 create_model_performance_tab(results_df)
-            
-            with tab4:
+            elif selected_tab == "🔍 Feature Analysis":
                 create_feature_analysis_tab(results_df, data)
-            
-            with tab5:
+                # --- New: Correlation Matrix ---
+                st.subheader("📊 Feature Correlation Matrix")
+                numeric_cols = data.select_dtypes(include=[np.number])
+                if len(numeric_cols.columns) > 1:
+                    corr = numeric_cols.corr()
+                    fig_corr = px.imshow(corr, text_auto=True, aspect="auto", color_continuous_scale="RdBu", title="Feature Correlation Heatmap")
+                    st.plotly_chart(fig_corr, use_container_width=True)
+                else:
+                    st.info("Not enough numeric features for correlation matrix.")
+            elif selected_tab == "🚨 Alert System":
                 if enable_alerts:
                     create_alert_system(results_df)
                 else:
                     st.info("Alert system is currently disabled. Enable it in the sidebar settings.")
-            
-            with tab6:
+            elif selected_tab == "📡 Real-time Monitoring":
                 create_real_time_monitoring_tab()
-            
+
             # Data export functionality
             st.markdown("---")
             st.subheader("📤 Export Results")
-            
             col1, col2 = st.columns(2)
-            
             with col1:
                 if include_raw_data:
                     export_df = results_df
@@ -732,7 +739,6 @@ def main():
                     if 'Actual_Class' in results_df.columns:
                         export_cols.append('Actual_Class')
                     export_df = results_df[export_cols]
-                
                 if export_format == "CSV":
                     csv = export_df.to_csv(index=False).encode('utf-8')
                     st.download_button(
@@ -759,12 +765,10 @@ def main():
                         file_name="fraud_detection_results.xlsx",
                         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                     )
-            
             with col2:
                 st.write("**Export Options:**")
                 st.info(f"Format: {export_format}")
                 st.info(f"Include raw data: {'Yes' if include_raw_data else 'No'}")
-        
         except Exception as e:
             st.error(f"An error occurred: {str(e)}")
             st.exception(e)
